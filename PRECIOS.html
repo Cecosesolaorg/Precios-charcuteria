@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PRECIOS CHARCUTERIA</title>
+    <!-- Carga de Tailwind CSS para un diseño moderno y responsive -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilos generales */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* Fondo Negro Profundo */
+            color: #d1d5db; /* Texto principal gris/plateado */
+        }
+        /* Estilos específicos para la impresión (ocultar controles) */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .price-tag-container {
+                /* Asegura que las etiquetas se impriman correctamente en filas */
+                display: block; 
+                margin: 0;
+                padding: 0;
+            }
+            .price-tag {
+                /* Forzar el tamaño de la etiqueta para una impresión uniforme */
+                width: 7cm; /* Ancho típico de etiqueta (ajusta según tu papel) */
+                height: 5cm; /* Alto típico de etiqueta (ajusta según tu papel) */
+                page-break-inside: avoid; /* Evita que la etiqueta se rompa entre páginas */
+                border: 1px dashed #ccc; /* Borde sutil para recortar */
+                margin: 0.5cm;
+                box-shadow: none;
+                border-radius: 0;
+                /* La etiqueta impresa DEBE ser blanca para no gastar tinta */
+                background-color: white !important;
+                color: #1f2937 !important; /* Texto oscuro para contraste */
+            }
+            .price-tag * {
+                color: #1f2937 !important; /* Asegura que todo el texto sea oscuro */
+                /* Las fuentes grandes de precio deben volver a ser azules en la impresión */
+            }
+            .price-tag .text-blue-600 {
+                color: #2563eb !important; /* Mantener el azul en el precio */
+            }
+            /* Ocultar el campo de edición individual durante la impresión */
+            .price-input-container {
+                display: none !important;
+            }
+        }
+
+        /* Estilo para el input de edición dentro de la etiqueta */
+        .price-input {
+            appearance: none; 
+            -moz-appearance: textfield; 
+            border: 1px solid #4b5563; /* Borde gris oscuro */
+            background-color: #374151; /* Fondo oscuro */
+            color: #f3f4f6; /* Texto claro */
+            padding: 2px 5px;
+            font-size: 1rem;
+            text-align: right;
+            border-radius: 4px;
+            width: 100%;
+        }
+        .price-input:focus {
+            outline: none;
+            border-color: #60a5fa; /* Azul claro en foco */
+            box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.5);
+        }
+
+        /* Estilos para el Modal de Ajuste Rápido (Se mantienen oscuros) */
+        .quick-edit-input {
+            background-color: #1f2937; /* Fondo oscuro */
+            color: #f8fafc; /* Texto claro */
+            border: 1px solid #4b5563;
+            padding: 8px;
+            font-size: 1.125rem;
+            font-weight: 700;
+            text-align: right;
+            border-radius: 6px;
+            width: 100%;
+        }
+        .quick-edit-input:focus {
+            outline: none;
+            border-color: #a78bfa; /* Morado claro en foco */
+            box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.5);
+        }
+        /* Estilo para la lista de productos dentro del modal */
+        #quickEditList {
+            max-height: 70vh; 
+            overflow-y: auto;
+            background-color: #1f2937; /* Fondo muy oscuro para el listado */
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- HEADER PLATEADO -->
+        <header class="no-print mb-8 p-4 bg-gray-900 shadow-2xl rounded-xl border border-gray-700">
+            <h1 class="text-3xl font-extrabold text-white mb-2 flex items-center">
+                💸 Etiquetas de Precios Editables 
+                <span class="ml-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-full font-semibold">BS</span>
+            </h1>
+            <p class="text-gray-400">
+                Ajusta el precio de cada etiqueta individualmente o usa el **Ajuste Rápido** para una edición secuencial. Estilo: Elegante Negro/Plateado.
+            </p>
+        </header>
+
+        <!-- Controles Principales (Ajuste Rápido e Impresión) -->
+        <section class="no-print bg-gray-900 p-6 rounded-xl shadow-2xl mb-8 border-t-4 border-blue-600 flex flex-col md:flex-row gap-4">
+             <!-- Botón Plateado/Azul (Ajuste Rápido) -->
+             <button onclick="openQuickEditModal()"
+                class="flex-1 bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-900">
+                Ajuste Rápido de Precios
+            </button>
+            <!-- Botón de Impresión Verde -->
+             <button onclick="printTags()"
+                class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900">
+                Imprimir TODAS las Etiquetas
+            </button>
+        </section>
+
+        <!-- Área de Visualización de Etiquetas -->
+        <section>
+            <h2 class="no-print text-xl font-bold text-gray-300 mb-4 border-b border-gray-700 pb-2">Vista Previa de Etiquetas Generadas (Diseño 3 Columnas)</h2>
+            <!-- Contenedor donde se insertarán las etiquetas generadas -->
+            <!-- CLASE GRID MODIFICADA: Ahora usa 1 columna en móvil, 2 en sm, y 3 en lg+ -->
+            <div id="priceTagContainer" class="price-tag-container grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Las etiquetas generadas se insertarán aquí -->
+            </div>
+        </section>
+        
+        <!-- Contenedor para mensajes de usuario (reemplazo de alert()) -->
+        <div id="messageBox" class="no-print fixed bottom-4 right-4 bg-red-600 text-white p-3 rounded-lg shadow-xl hidden transition-opacity duration-300"></div>
+
+        <!-- MODAL DE AJUSTE RÁPIDO DE PRECIOS -->
+        <div id="quickEditModal" class="fixed inset-0 bg-gray-900 bg-opacity-80 z-50 flex justify-center items-center hidden">
+            <div class="bg-gray-800 text-white p-6 rounded-xl shadow-2xl w-full max-w-lg mx-4 border-t-4 border-yellow-500">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold text-yellow-400">Ajuste Rápido de Precios (Bs)</h2>
+                    <button onclick="closeQuickEditModal()" class="text-gray-400 hover:text-white text-3xl font-light leading-none">&times;</button>
+                </div>
+
+                <p class="mb-4 text-sm text-gray-400">Presiona **ENTER** después de ingresar un precio para pasar rápidamente al siguiente producto.</p>
+                
+                <!-- Lista de Productos para Edición Rápida -->
+                <div id="quickEditList" class="space-y-2">
+                    <!-- Contenido generado por JS -->
+                </div>
+
+                <div class="mt-6 flex justify-end gap-3">
+                    <button onclick="closeQuickEditModal()" class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-150">
+                        Cerrar y Ver Etiquetas
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- FIN DEL MODAL -->
+
+    </div>
+
+    <script>
+        // Catálogo de Productos (La fuente única de la verdad, se actualizará en tiempo real)
+        const inventory = [
+            // LISTA COMPLETA ANTERIOR
+            { id: 1, name: "1.HUEVOS 1/2 ", unit: "UND", price: 0.00 },
+            { id: 2, name: "2.CASABE", unit: "UND", price: 0.00 },
+            { id: 3, name: "3.CHICHA GUARALAC 400GM", unit: "UND", price: 0.00 },
+            { id: 4, name: "4.QUESO LLANERO RALLADO", unit: "KG", price: 0.00 },
+            { id: 5, name: "5.PANELA (PILA)", unit: "KG", price: 0.00 },
+            { id: 6, name: "6.BOLSA DE CEBOLLA ", unit: "UND", price: 0.00 },
+            { id: 7, name: "7.BOLSA DE PAPAS", unit: "UND", price: 0.00 },
+            { id: 8, name: "8.BOLSA DE CEBOLLIN", unit: "UND", price: 0.00 },
+            { id: 9, name: "9.HARINA PAN", unit: "KG", price: 0.00 },
+            { id: 10, name: "10.AZUCAR MORENA", unit: "KG", price: 0.00 }
+        ];
+
+        // Variables globales del DOM
+        const container = document.getElementById('priceTagContainer');
+        const messageBox = document.getElementById('messageBox');
+        const quickEditModal = document.getElementById('quickEditModal');
+        const quickEditList = document.getElementById('quickEditList');
+
+
+        /**
+         * Muestra un mensaje temporal al usuario (reemplazo de alert()).
+         * @param {string} message - El mensaje a mostrar.
+         * @param {string} type - 'success' o 'error' para definir el color.
+         */
+        function showMessage(message, type = 'error') {
+            messageBox.textContent = message;
+            // Configuración del color del mensaje para el tema oscuro
+            messageBox.classList.remove('hidden', 'bg-red-600', 'bg-green-600', 'opacity-0');
+            messageBox.classList.add(type === 'success' ? 'bg-green-600' : 'bg-red-600', 'opacity-100');
+            
+            // Ocultar después de 3 segundos
+            setTimeout(() => {
+                messageBox.classList.remove('opacity-100');
+                messageBox.classList.add('opacity-0');
+                setTimeout(() => {
+                    messageBox.classList.add('hidden');
+                }, 300);
+            }, 3000);
+        }
+
+        /**
+         * Lógica de actualización de precio (compartida por el modal y la edición individual).
+         * @param {number} productId - El ID del producto.
+         * @param {number} newPrice - El nuevo precio a aplicar.
+         */
+        function updatePrice(productId, newPrice) {
+            const product = inventory.find(p => p.id === productId);
+            if (product) {
+                // Redondear a 2 decimales para precisión
+                newPrice = parseFloat(newPrice.toFixed(2));
+                
+                if (product.price !== newPrice) {
+                    product.price = newPrice;
+                    
+                    // 1. Actualizar la etiqueta visible en el DOM principal
+                    const tagElement = document.getElementById(`tag-${productId}`);
+                    if (tagElement) {
+                        const newPriceHtml = createPriceDisplayHtml(newPrice, productId);
+                        const priceDisplayElement = tagElement.querySelector('.price-display');
+                        if (priceDisplayElement) {
+                            priceDisplayElement.innerHTML = newPriceHtml;
+                        }
+                    }
+                    
+                    // 2. Actualizar el input de edición individual (si está visible)
+                    const individualInput = document.getElementById(`input-${productId}`);
+                    if (individualInput) {
+                        individualInput.value = newPrice.toFixed(2);
+                    }
+                    
+                    // 3. Opcional: Mostrar mensaje de éxito si no estamos en el modal
+                    if (quickEditModal.classList.contains('hidden')) {
+                        // El split para remover el índice '1.' o '2.' del nombre
+                        showMessage(`Precio de ${product.name.split('.')[1].trim()} actualizado a Bs ${newPrice.toFixed(2)}`, 'success');
+                    }
+                }
+            }
+        }
+        
+        /**
+         * Maneja el evento de cambio en el input de precio individual.
+         * @param {number} productId - El ID del producto.
+         * @param {Event} event - El objeto del evento (input, change).
+         */
+        function handlePriceChange(productId, event) {
+            let newPrice = parseFloat(event.target.value);
+            
+            // Si no es un número válido o es negativo, usamos 0
+            if (isNaN(newPrice) || newPrice < 0) {
+                newPrice = 0;
+            }
+            
+            // Asegurarse de que el input refleje el valor limpio (importante después de un blur/change)
+            event.target.value = newPrice.toFixed(2);
+            
+            updatePrice(productId, newPrice);
+        }
+
+        /**
+         * Genera el HTML interno para mostrar el precio formateado.
+         * @param {number} priceValue - Valor numérico del precio.
+         * @param {number} productId - ID del producto (para el input).
+         * @returns {string} HTML del display de precio.
+         */
+        function createPriceDisplayHtml(priceValue, productId) {
+            // Configuración del formato para Bolívares (Bs)
+            const currencySymbol = 'Bs';
+            const priceString = priceValue.toFixed(2).replace('.', ','); // Usar coma como separador decimal
+            const parts = priceString.split(',');
+            const integerPart = parts[0];
+            const decimalPart = parts[1];
+            
+            // Usar color gris para precio $ 0,00, Azul para precio > 0
+            const priceColor = priceValue > 0 ? 'text-blue-500' : 'text-gray-500';
+
+            return `
+                <!-- Contenedor del Precio (Grande) -->
+                <div class="flex items-end mt-1 mb-2 price-value-display">
+                    <!-- Símbolo de moneda -->
+                    <span class="text-6xl font-extrabold ${priceColor} leading-none">
+                        ${currencySymbol}
+                    </span>
+                    <!-- Parte entera -->
+                    <span class="text-7xl font-extrabold ${priceColor} leading-none ml-1">
+                        ${integerPart}
+                    </span>
+                    <!-- Decimales -->
+                    <span class="text-3xl font-bold ${priceColor} leading-none ml-1 self-start">
+                        ,${decimalPart}
+                    </span>
+                </div>
+                <!-- Input de edición (visible solo en pantalla) -->
+                <div class="no-print price-input-container mt-2">
+                    <input type="number" 
+                        id="input-${productId}" 
+                        value="${priceValue.toFixed(2)}" 
+                        step="0.01" 
+                        min="0" 
+                        class="price-input"
+                        onchange="handlePriceChange(${productId}, event)"
+                        onkeydown="if(event.key === 'Enter') { event.preventDefault(); event.target.blur(); }">
+                </div>
+            `;
+        }
+
+        /**
+         * Genera el HTML completo para una sola etiqueta de precio.
+         * Se usan clases oscuras para el modo de visualización en pantalla.
+         * @param {object} product - Objeto del producto.
+         * @returns {string} HTML de la etiqueta.
+         */
+        function createSingleTag(product) {
+            const priceHtml = createPriceDisplayHtml(product.price, product.id);
+
+            return `
+                <!-- w-full para que ocupe el ancho de la columna del grid -->
+                <div class="price-tag w-full p-4 flex flex-col justify-between bg-gray-900 border border-gray-700 rounded-xl shadow-xl hover:shadow-2xl transition duration-300" id="tag-${product.id}">
+                    <div class="text-xs font-medium text-gray-500 truncate uppercase no-print">
+                        Precio en Bolívares (Bs)
+                    </div>
+                    
+                    <div class="price-display">
+                        ${priceHtml}
+                    </div>
+
+                    <!-- Nombre del Producto y Unidad de Medida -->
+                    <h3 class="text-lg font-semibold text-gray-300 truncate border-t border-gray-700 pt-2 mt-2 flex justify-between items-center">
+                        ${product.name}
+                        <span class="text-sm font-bold text-red-400 ml-2 bg-red-900/50 px-2 py-0.5 rounded-full">${product.unit}</span>
+                    </h3>
+                </div>
+            `;
+        }
+
+
+        /**
+         * Genera todas las etiquetas del catálogo.
+         */
+        function generateAllCatalogTags() {
+            container.innerHTML = '';
+            inventory.forEach(product => {
+                const tagHtml = createSingleTag(product);
+                container.insertAdjacentHTML('beforeend', tagHtml);
+            });
+            
+            if (!window.initialLoadComplete) {
+                showMessage(`Catálogo de ${inventory.length} etiquetas cargado. Moneda: Bolívares (Bs).`, 'success');
+                window.initialLoadComplete = true;
+            }
+        }
+
+
+        /**
+         * Lanza la ventana de impresión del navegador.
+         */
+        function printTags() {
+            if (container.children.length === 0) {
+                showMessage("No hay etiquetas para imprimir.", 'error');
+                return;
+            }
+            window.print();
+        }
+        
+        // --- LÓGICA DEL MODAL DE AJUSTE RÁPIDO ---
+
+        /**
+         * Genera la lista de productos para la edición rápida en el modal.
+         */
+        function generateQuickEditList() {
+            quickEditList.innerHTML = '';
+            
+            inventory.forEach(product => {
+                const itemHtml = `
+                    <div class="flex items-center justify-between p-3 rounded-lg bg-gray-700 hover:bg-gray-700/80 shadow-md">
+                        <!-- Nombre del Producto -->
+                        <span class="text-lg font-medium text-gray-100 truncate pr-4">${product.name}</span>
+                        
+                        <!-- Input de Edición Rápida -->
+                        <input type="number" 
+                            id="quick-edit-input-${product.id}" 
+                            value="${product.price.toFixed(2)}" 
+                            step="0.01" 
+                            min="0" 
+                            class="quick-edit-input w-32"
+                            data-product-id="${product.id}"
+                            onchange="handleQuickEditChange(${product.id}, event)"
+                            onkeydown="handleQuickEditKeydown(${product.id}, event)">
+                    </div>
+                `;
+                quickEditList.insertAdjacentHTML('beforeend', itemHtml);
+            });
+        }
+        
+        /**
+         * Maneja el cambio de precio dentro del modal.
+         * @param {number} productId - ID del producto.
+         * @param {Event} event - Evento de cambio (blur o enter).
+         */
+        function handleQuickEditChange(productId, event) {
+            let newPrice = parseFloat(event.target.value);
+            
+            if (isNaN(newPrice) || newPrice < 0) {
+                newPrice = 0;
+            }
+            
+            // Asegurarse de que el input refleje el valor limpio y usar 2 decimales
+            newPrice = parseFloat(newPrice.toFixed(2));
+            event.target.value = newPrice.toFixed(2);
+            
+            // Actualizar el inventario y la etiqueta principal en el fondo
+            updatePrice(productId, newPrice);
+        }
+
+        /**
+         * Maneja la pulsación de teclas en el input del modal (especialmente ENTER).
+         * @param {number} productId - ID del producto.
+         * @param {Event} event - Evento de teclado.
+         */
+        function handleQuickEditKeydown(productId, event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                
+                // Aplicar el cambio de precio (simular blur/change)
+                event.target.blur();
+                handleQuickEditChange(productId, event); 
+
+                // 1. Encontrar el índice del producto actual
+                const currentIndex = inventory.findIndex(p => p.id === productId);
+                
+                // 2. Calcular el índice del siguiente producto
+                const nextIndex = currentIndex + 1;
+
+                // 3. Si hay un siguiente producto, enfocar su input
+                if (nextIndex < inventory.length) {
+                    const nextProductId = inventory[nextIndex].id;
+                    const nextInput = document.getElementById(`quick-edit-input-${nextProductId}`);
+                    if (nextInput) {
+                        nextInput.focus();
+                        nextInput.select(); // Selecciona el texto para escribir encima fácilmente
+                        // Desplazar el contenedor para que el input sea visible (si es necesario)
+                        nextInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                } else {
+                    // Si es el último, mostrar un mensaje
+                    showMessage("Fin de la lista de productos.", 'success');
+                }
+            }
+        }
+
+        /**
+         * Abre el modal de edición rápida.
+         */
+        function openQuickEditModal() {
+            generateQuickEditList();
+            quickEditModal.classList.remove('hidden');
+            
+            // Opcional: Enfocar el primer input al abrir
+            const firstInput = document.getElementById(`quick-edit-input-${inventory[0].id}`);
+            if (firstInput) {
+                firstInput.focus();
+                firstInput.select();
+            }
+        }
+
+        /**
+         * Cierra el modal de edición rápida.
+         */
+        function closeQuickEditModal() {
+            quickEditModal.classList.add('hidden');
+        }
+
+        // Exponer funciones necesarias para el HTML (onclick, onchange, etc.)
+        window.handlePriceChange = handlePriceChange;
+        window.printTags = printTags;
+        window.openQuickEditModal = openQuickEditModal;
+        window.closeQuickEditModal = closeQuickEditModal;
+        window.handleQuickEditChange = handleQuickEditChange;
+        window.handleQuickEditKeydown = handleQuickEditKeydown;
+
+
+        // Inicialización: Generar todas las etiquetas del catálogo al cargar la página.
+        window.onload = function() {
+            generateAllCatalogTags();
+        };
+
+    </script>
+
+</body>
+</html>
